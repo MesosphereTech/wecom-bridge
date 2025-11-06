@@ -7,10 +7,10 @@
     "start": "vercel dev"
   },
   "engines": {
-    "node": "18.x"
+    "node": "22.x"
   },
   "devDependencies": {
-    "@types/node": "^18.18.0",
+    "@types/node": "^22.0.0",
     "typescript": "^5.2.2"
   }
 }
