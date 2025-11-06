@@ -1,0 +1,85 @@
+<!doctype html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>金秘书 · 企业微信桥接壳</title>
+  <style>
+    html,body{margin:0;height:100%;font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial}
+    .top{padding:12px;border-bottom:1px solid #eee;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+    .tag{font:14px/1.2 system-ui;color:#666}
+    button{padding:8px 12px;border-radius:10px;border:1px solid #ddd;background:#fff;cursor:pointer}
+    iframe{width:100%;height:calc(100% - 58px);border:0}
+  </style>
+  <!-- 企业微信 JS（整合版） -->
+  <script src="https://res.wx.qq.com/wwopen/js/jsapi/jweixin-1.0.0.js"></script>
+</head>
+<body>
+  <div class="top">
+    <button id="btnLogin">识别企业微信身份</button>
+    <button id="btnScan">调用扫码(JS-SDK)</button>
+    <span id="who" class="tag"></span>
+  </div>
+  <!-- 把你的 Figma 或真实 H5 链接贴到 data-src -->
+  <iframe id="fig" data-src="https://www.figma.com/proto/REPLACE_WITH_YOUR_FIGMA_LINK"></iframe>
+
+<script>
+async function fetchEnv(){
+  const env = await fetch('/api/env').then(r=>r.json());
+  return env; // { corpId, agentId }
+}
+async function initJSSDK(){
+  const env = await fetchEnv();
+  const pageUrl = location.href.split('#')[0];
+  const cfg = await fetch(`/api/jssdk-config?url=${encodeURIComponent(pageUrl)}`).then(r=>r.json());
+  wx.config({
+    beta:true, debug:false, appId: cfg.corpId,
+    timestamp: cfg.base.timestamp, nonceStr: cfg.base.nonceStr, signature: cfg.base.signature,
+    jsApiList: ['scanQRCode']
+  });
+  wx.ready(function(){
+    wx.agentConfig({
+      corpid: cfg.corpId, agentid: cfg.agentId,
+      timestamp: cfg.agent.timestamp, nonceStr: cfg.agent.nonceStr, signature: cfg.agent.signature,
+      jsApiList: ['selectExternalContact'],
+      success(){ console.log('agent ok'); },
+      fail(e){ console.error('agent fail', e); }
+    });
+  });
+  wx.error(e=>console.error('wx.config error', e));
+}
+
+async function oauth(){
+  const env = await fetchEnv();
+  const redirect = encodeURIComponent(location.origin + location.pathname + "?authed=1");
+  const authUrl = `https://open.weixin.qq.com/connect/oauth2/authorize?appid=${env.corpId}&redirect_uri=${redirect}&response_type=code&scope=snsapi_base&state=STATE#wechat_redirect`;
+  location.href = authUrl;
+}
+async function afterOAuth(){
+  const p = new URLSearchParams(location.search);
+  if(!p.get('code')) return;
+  const j = await fetch(`/api/getuserinfo?code=${encodeURIComponent(p.get('code'))}`).then(r=>r.json());
+  document.getElementById('who').textContent = j.UserId ? `已登录：${j.UserId}` : `身份获取失败`;
+}
+
+document.getElementById('btnLogin').onclick = oauth;
+document.getElementById('btnScan').onclick = function(){
+  wx.scanQRCode({
+    needResult:1, scanType:["qrCode","barCode"],
+    success: function (res) {
+      const fig = document.getElementById('fig').contentWindow;
+      fig.postMessage({type:'scan', result:res.resultStr}, '*');
+      alert('扫码结果：' + res.resultStr);
+    }
+  });
+};
+
+addEventListener('load', ()=>{
+  initJSSDK();
+  afterOAuth();
+  const f = document.getElementById('fig');
+  f.src = f.dataset.src;
+});
+</script>
+</body>
+</html>

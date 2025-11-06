@@ -1,0 +1,1 @@
+REPLACE THIS FILE with the real WW_verify_xxx.txt from WeCom admin.
